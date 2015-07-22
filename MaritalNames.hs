@@ -11,7 +11,7 @@ data Person = Person {
 	-- Current last-name of Person. I.e "Keimonen". 
 	-- Can be combined name i.e "Huttunen-Keimonen" 
 	lastName :: String,
-	-- Birth name (faminy name) of Person.
+	-- Birth name (family name) of Person.
 	birthName :: String
 } deriving (Show)
 
@@ -101,7 +101,7 @@ maritalNames personA personB =
 pjoin :: [(Person, Person)] -> (Person, Person) -> [(Person, Person)]
 pjoin arr v = arr ++ [v]
 
--- | Joins tuple of Persons from triple (Person, Person, Bool) to array of
+-- | Joins tuple of Persons from triple (Bool, Person, Person) to array of
 -- | tuple of Persons if boolean in triple is True
 pjoinCond :: [(Person, Person)] -> (Bool, Person, Person) -> [(Person, Person)]
 pjoinCond arr (cond, personA, personB) = 
