@@ -1,5 +1,7 @@
 # haskell-finnish-marital-names
-It's simple program for generating possible marital name combinations according to finnish legislation. This uses finnish syntax for describing names which is as follows.
+It's simple program for generating possible marital name combinations according to finnish legislation. **Note: ** Yours truly is not a layer or expert in this domain. Don't blame me if you can't get a name this software promises :D 
+
+This uses finnish syntax for describing names which is as follows.
 
 ```
 Person who still has birth name
