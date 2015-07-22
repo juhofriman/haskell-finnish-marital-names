@@ -1,1 +1,4 @@
+Marital-cli
+*.o
+*.hi
 .hdevtools.sock
