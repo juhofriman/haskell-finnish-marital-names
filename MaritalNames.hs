@@ -1,27 +1,42 @@
 module MaritalNames (
+	maritalNamesFromString,
 	maritalNames,
-	parsePerson
+	parsePerson,
+	printMaritalNames
 ) where
 
 data Person = Person {
+	-- First name of Person. I.e "Jarmo"
 	firstName :: String,
+	-- Current last-name of Person. I.e "Keimonen". 
+	-- Can be combined name i.e "Huttunen-Keimonen" 
 	lastName :: String,
+	-- Birth name (faminy name) of Person.
 	birthName :: String
 } deriving (Show)
 
--- | creates person from array
+-- | creates person from array which supposedly is (words "Jack Penttinen")
+-- | if last name is combined name birthname is parsed accordingly
 personFromArray :: [String] -> Person
 personFromArray [] = error "Illegal person definition EMPTY"
 personFromArray [e] = error ("Illegal person defintion '" ++ e ++ "'")
-personFromArray [fname, lname] = Person fname lname lname
-personFromArray [fname, lname, _, bname] = Person fname lname bname
+personFromArray [fname, lname] = 
+	if isCombinedName lname
+		then Person fname lname (birthNameFromCombinedName lname)
+		else Person fname lname lname
+-- This is pretty horrible...
+personFromArray [fname, lname, _, bname] = 
+	if isCombinedName lname &&  birthNameFromCombinedName lname /= bname
+		then error ("bname=" ++ bname ++ 
+			    " but lname=" ++ lname ++ " NO DICE!")
+	        else Person fname lname bname
 personFromArray e = error ("Illegal person definition '" ++ unwords e ++ "'")
 
 -- | parses person from string
 parsePerson :: String -> Person
 parsePerson nameString = personFromArray $ words nameString
 
--- | returns instance of person with lastname as last name
+-- | returns instance of person with new lastname last name
 withLastName :: Person -> String -> Person
 withLastName p lastname = Person (firstName p) lastname (birthName p)
 
@@ -30,8 +45,19 @@ combinedName :: (Person -> String) -> Person -> (Person -> String) -> Person -> 
 combinedName accessorA pa accessorB pb = accessorA pa ++ "-" ++ accessorB pb
 
 -- | tells if Person has still his birth name
-isOriginalName :: Person -> Bool
-isOriginalName person = birthName person == lastName person
+hasBirthName :: Person -> Bool
+hasBirthName person = birthName person == lastName person
+
+-- | tells if name is combined name
+isCombinedName :: String -> Bool
+isCombinedName = elem '-'
+
+hasCombinedName :: Person -> Bool
+hasCombinedName p = isCombinedName $ lastName p
+
+-- | returns birth name part from combined name
+birthNameFromCombinedName :: String -> String
+birthNameFromCombinedName = takeWhile (/= '-')
 
 -- | It's convenient to call this lib by strings so one don't have to parse names outside
 maritalNamesFromString :: String -> String -> [(Person, Person)]
@@ -40,54 +66,50 @@ maritalNamesFromString a b = maritalNames (parsePerson a) (parsePerson b)
 -- | creates array of Person tuples with all possible name combinations
 maritalNames :: Person -> Person -> [(Person, Person)]
 maritalNames personA personB = 
-	-- TODO: make more "fluid"
-	-- no change in names
-	[(personA,
-	  personB)]
-	-- fallback on name
-	++?
-	(not $ isOriginalName personA,
-	  (personA `withLastName` birthName personA,
-	   personB))
-	++?
-        (not $ isOriginalName personB,
-          (personA,
-           personB `withLastName` birthName personB))
-	++?
-	((not $ isOriginalName personA) && (not $ isOriginalName personB),
-	  (personA `withLastName`birthName personA,
-           personB `withLastName` birthName personB))
-	-- select birth name of A for both
-	++
-	[(personA `withLastName` birthName personA,
-          personB `withLastName` birthName personA)]
-	-- select last name of B for both
-	++
-	[(personA `withLastName` birthName personB,
-	  personB `withLastName` birthName personB)]
-	-- person A can choose combined name
-	++
-	[(personA `withLastName` combinedName birthName personA birthName personB,
-	  personB `withLastName` birthName personB)]
-	-- person A can keep name gotten from previous marriage in combined name
-	++?
-	(not $ isOriginalName personA,
-	 (personA `withLastName`combinedName lastName personA birthName personB,
-	  personB `withLastName` birthName personB))
-	-- person B can choose combined name
-	++
-	[(personA `withLastName` birthName personA,
-	  personB `withLastName` combinedName birthName personB birthName personA)]
-	-- person B can keep name gotten from previous marriage in combined name
-	++?
-	(not $ isOriginalName personB,
-	  (personA `withLastName` birthName personA,
-	   personB `withLastName` combinedName lastName personB birthName personA))
+	[] -- seed for "pipe"
+	-- Keep original names
+	`pjoin` 	(personA, 
+			 personB)
+	-- Select common birth name of A
+	`pjoin` 	(personA `withLastName` birthName personA, 
+			 personB `withLastName` birthName personA)
+	-- Select common birth name of B
+	`pjoin`		(personA `withLastName` birthName personB,
+			 personB `withLastName` birthName personB)
+	-- Select common name of A but use combined name
+	`pjoin`		(personA `withLastName` birthName personA,
+			 personB `withLastName` 
+			 	combinedName birthName personB birthName personA)
+	-- Select common name of a but Can keep name from previous marriage 
+	-- in combined name
+	`pjoinCond`	(not (hasBirthName personB) &&
+			 not (hasCombinedName personB),
+			 personA `withLastName` birthName personA,
+			 personB `withLastName`
+				combinedName lastName personB birthName personA)
+	-- Select common name of A but use combined name
+ 	`pjoin`     	(personA `withLastName`
+                         	combinedName birthName personA birthName personB,
+			 personB `withLastName` birthName personB)
+        -- Select common name of B but can keep name from previous marriage 
+	-- in combined name
+        `pjoinCond`     (not (hasBirthName personA) &&
+			 not (hasCombinedName personA),
+                         personA `withLastName` 
+				combinedName lastName personA birthName personB,
+                         personB `withLastName` birthName personB)  
 
--- utility function for adding value to array conditionally
--- [1,2,4] ++? (True, 5)  =>  [1,2,4,5]
-(++?) :: [a] -> (Bool, a) -> [a]
-arr ++? (b, x) = if b then arr ++ [x] else arr ++ []
+-- | Joins tuple of Persons to array of tuple of persons
+-- note: these could be more generic! Theres no need to restrict to persons here!
+-- but on the other hand, it's meant precicely for this
+pjoin :: [(Person, Person)] -> (Person, Person) -> [(Person, Person)]
+pjoin arr v = arr ++ [v]
+
+-- | Joins tuple of Persons from triple (Person, Person, Bool) to array of
+-- | tuple of Persons if boolean in triple is True
+pjoinCond :: [(Person, Person)] -> (Bool, Person, Person) -> [(Person, Person)]
+pjoinCond arr (cond, personA, personB) = 
+	if cond then arr ++ [(personA, personB)] else arr
 
 -- printing utilities
 
@@ -97,7 +119,7 @@ tellPerson p =
 	firstName p ++ 
 	" " ++ 
 	lastName p ++ 
-	if isOriginalName p 
+	if hasCombinedName p || hasBirthName p 
 		then "" 
 		else " os " ++ birthName p
 
@@ -107,7 +129,7 @@ tellCombination (p1, p2) = tellPerson p1 ++ " & " ++ tellPerson p2
 
 -- | prints marital name combinations neatly
 printMaritalNames :: [(Person, Person)] -> IO()
-printMaritalNames res = mapM_ (\x -> print (tellCombination x)) res 
+printMaritalNames = mapM_ (print . tellCombination)
 
 
 
