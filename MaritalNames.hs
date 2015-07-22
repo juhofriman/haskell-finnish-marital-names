@@ -24,12 +24,8 @@ personFromArray [fname, lname] =
 	if isCombinedName lname
 		then Person fname lname (birthNameFromCombinedName lname)
 		else Person fname lname lname
--- This is pretty horrible...
 personFromArray [fname, lname, _, bname] = 
-	if isCombinedName lname &&  birthNameFromCombinedName lname /= bname
-		then error ("bname=" ++ bname ++ 
-			    " but lname=" ++ lname ++ " NO DICE!")
-	        else Person fname lname bname
+	Person fname lname bname
 personFromArray e = error ("Illegal person definition '" ++ unwords e ++ "'")
 
 -- | parses person from string
@@ -119,9 +115,9 @@ tellPerson p =
 	firstName p ++ 
 	" " ++ 
 	lastName p ++ 
-	if hasCombinedName p || hasBirthName p 
-		then "" 
-		else " os " ++ birthName p
+	if birthNameFromCombinedName (lastName p) /= birthName p 
+		then " os " ++ birthName p
+		else ""
 
 -- | String representation of tuple of Person
 tellCombination :: (Person, Person) -> String
